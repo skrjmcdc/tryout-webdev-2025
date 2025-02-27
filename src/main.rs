@@ -1,6 +1,9 @@
 use std::{
 	fs,
-	io::prelude::Write,
+	io::{
+		prelude::{Read, Write},
+		BufReader
+	},
 	net::{TcpListener},
 };
 
@@ -15,10 +18,29 @@ fn main() {
 
 		let mut stream = stream.unwrap();
 
-		let content: String = fs::read_to_string("index.html").unwrap();
+		let mut buffer = [0; 1024];
+		let mut buf_reader = BufReader::new(&mut stream);
+		let result = buf_reader.read(&mut buffer);
+		println!("{:?}", result);
+
+		let request = String::from_utf8_lossy(&buffer);
+		println!("{request}");
+
+		let (header, _) = match request.split_once("\r\n") {
+			Some((a, b)) => (a, b),
+			None => ("", ""),
+		};
+
+		let (response_line, filename) = match header {
+			"GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
+			_ => ("HTTP/1.1 404 Not Found", "404.html"),
+		};
+
+		let content: String = fs::read_to_string(filename).unwrap();
 
 		let response = format!(
-			"HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+			"{}\r\nContent-Length: {}\r\n\r\n{}",
+			response_line,
 			content.len(),
 			content,
 		);
