@@ -1,4 +1,5 @@
 use std::{
+    env,
 	fs,
 	io::{
 		prelude::{Read, Write},
@@ -7,7 +8,10 @@ use std::{
 	net::{TcpListener},
 };
 
+use tryout::Tryout;
+
 fn main() {
+	
     let listener = TcpListener::bind("127.0.0.1:12345").unwrap();
 
 	let mut connections: usize = 0;
@@ -48,5 +52,19 @@ fn main() {
 		);
 
 		stream.write_all(response.as_bytes()).unwrap();
+	}
+}
+
+fn fetch_tryout(id: &str) -> Result<Tryout, ()> {
+	let data_path = {
+        let mut path = env::current_dir().unwrap();
+        path.push("data");
+        path.push(id);
+        path
+    };
+    let data = fs::read(data_path);
+	match data {
+		Err(_) => Err(()),
+		Ok(data) => Tryout::from_raw_bytes(&data[..]),
 	}
 }
