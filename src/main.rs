@@ -30,12 +30,15 @@ fn main() {
 		let request = String::from_utf8_lossy(&buffer);
 		println!("{request}");
 
-		let (header, _) = match request.split_once("\r\n") {
-			Some((a, b)) => (a, b),
-			None => ("", ""),
-		};
+		let (request_line, rest) = request
+            .split_once("\r\n")
+            .unwrap_or(("", ""));
 
-		let (response_line, filename) = match header {
+        let (headers, body) = rest
+            .split_once("\r\n\r\n")
+            .unwrap_or(("", ""));
+
+		let (response_line, filename) = match request_line {
 			"GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
 			"GET /contoh-tryout HTTP/1.1" =>
                 ("HTTP/1.1 200 OK", "details.html"),
