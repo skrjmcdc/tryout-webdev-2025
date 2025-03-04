@@ -39,6 +39,7 @@ fn main() {
 			"GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
 			"GET /contoh-tryout HTTP/1.1" =>
                 ("HTTP/1.1 200 OK", "details.html"),
+            "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
 		};
 
