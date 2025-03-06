@@ -33,9 +33,11 @@
 	let optionCount = 0;
 	function createQuestion() {
 		let container = document.createElement("div");
+		let containerId = "q" + optionCount;
+		container.setAttribute("id", containerId);
 		container.setAttribute("class", "question");
 		let questionText = document.createElement("input");
-		let questionName = optionCount + "";
+		let questionName = optionCount + "_q";
 		questionText.setAttribute("type", "text");
 		questionText.setAttribute("name", questionName);
 		let options = document.createElement("div");
@@ -44,8 +46,14 @@
 		labelQuestionText.setAttribute("for", questionName);
 		labelQuestionText.innerHTML = "Pertanyaan:";
 
+		let questionType = document.createElement("input");
+		let questionTypeName = optionCount + "_t";
+		questionType.setAttribute("type", "hidden");
+		questionType.setAttribute("name", questionTypeName);
+		questionType.setAttribute("value", "0");
+
 		let inputOption1 = document.createElement("input");
-		let nameOption1 = optionCount + "_1";
+		let nameOption1 = optionCount + "_o0";
 		inputOption1.setAttribute("type", "text");
 		inputOption1.setAttribute("name", nameOption1);
 		// inputOption1.setAttribute("value", "Benar");
@@ -56,7 +64,7 @@
 		labelOption1.innerHTML = "Pilihan 1:";
 
 		let inputOption2 = document.createElement("input");
-		let nameOption2 = optionCount + "_2";
+		let nameOption2 = optionCount + "_o1";
 		inputOption2.setAttribute("type", "text");
 		inputOption2.setAttribute("name", nameOption2);
 		// inputOption2.setAttribute("value", "Salah");
@@ -65,6 +73,13 @@
 		let labelOption2 = document.createElement("label");
 		labelOption2.setAttribute("for", nameOption2);
 		labelOption2.innerHTML = "Pilihan 2:";
+
+		let removeButton = document.createElement("button");
+		removeButton.setAttribute("type", "button");
+		removeButton.innerHTML = "Hapus";
+		removeButton.addEventListener("click", () => {
+			document.getElementById(containerId).remove();
+		});
 		
 		options.append(labelOption1);
 		options.append(inputOption1);
@@ -73,7 +88,9 @@
 
 		container.appendChild(labelQuestionText);
 		container.appendChild(questionText);
+		container.appendChild(questionType);
 		container.appendChild(options);
+		container.appendChild(removeButton);
 
 		optionCount++;
 
