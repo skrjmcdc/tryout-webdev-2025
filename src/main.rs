@@ -8,6 +8,8 @@ use std::{
 	net::{TcpListener},
 };
 
+use urlencoding;
+
 use tryout::Tryout;
 
 fn main() {
@@ -28,7 +30,7 @@ fn main() {
 		println!("{:?}", result);
 
 		let request = String::from_utf8_lossy(&buffer);
-		println!("{request}");
+		println!("===Request: ===\n{request}\n===End Request===");
 
 		let (request_line, rest) = request
             .split_once("\r\n")
@@ -38,11 +40,25 @@ fn main() {
             .split_once("\r\n\r\n")
             .unwrap_or(("", ""));
 
+		let content_length: Option<usize> = headers
+			.split("\r\n")
+			.find(|x| x.starts_with("Content-Length"))
+			.map(|x| x.split_once(":"))
+			.flatten()
+			.map(|x| x.1.trim().parse().ok())
+			.flatten();
+		
+		let body = &body[..content_length.unwrap_or(0)];
+
 		let (response_line, filename) = match request_line {
 			"GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
 			"GET /contoh-tryout HTTP/1.1" =>
                 ("HTTP/1.1 200 OK", "details.html"),
             "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
+			"POST /submit HTTP/1.1" => {
+				let _ = Tryout::from_post_body(&body[..]);
+				("HTTP/1.1 404 Not Found", "404.html")
+			},
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
 		};
 
