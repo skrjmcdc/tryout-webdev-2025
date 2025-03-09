@@ -4,7 +4,7 @@ use urlencoding;
 
 pub struct HtmlFormData(Vec<HtmlFormField>);
 
-struct HtmlFormField {
+pub struct HtmlFormField {
 	name: String,
 	value: String,
 }
@@ -26,12 +26,28 @@ impl HtmlFormData {
 	}
 }
 
+impl IntoIterator for HtmlFormData {
+
+	type Item = HtmlFormField;
+	type IntoIter = std::vec::IntoIter<Self::Item>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.0.into_iter()
+	}
+}
+
 impl HtmlFormField {
 	fn new(name: String, value: String) -> Self {
 		Self {
 			name,
 			value,
 		}
+	}
+}
+
+impl Into<(String, String)> for HtmlFormField {
+	fn into(self) -> (String, String) {
+		(self.name, self.value)
 	}
 }
 

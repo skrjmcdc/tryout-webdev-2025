@@ -61,7 +61,8 @@ fn main() {
                 ("HTTP/1.1 200 OK", "details.html"),
             "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
 			"POST /submit HTTP/1.1" => {
-				let _ = parse_tryout_from_raw_post_body(&body[..]);
+				let tryout = parse_tryout_from_raw_post_body(&body[..]);
+				println!("{:?}", tryout);
 				("HTTP/1.1 404 Not Found", "404.html")
 			},
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
