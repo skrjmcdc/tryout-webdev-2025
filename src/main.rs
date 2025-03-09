@@ -11,12 +11,17 @@ use std::{
 use urlencoding;
 
 use tryout::Tryout;
+use tryout::Error;
+
+use tryout::server::{lololol, HtmlFormData};
 
 fn main() {
 	
     let listener = TcpListener::bind("127.0.0.1:12345").unwrap();
 
 	let mut connections: usize = 0;
+
+	println!("{}", lololol());
 
 	for stream in listener.incoming() {
 		connections += 1;
@@ -56,7 +61,7 @@ fn main() {
                 ("HTTP/1.1 200 OK", "details.html"),
             "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
 			"POST /submit HTTP/1.1" => {
-				let _ = Tryout::from_post_body(&body[..]);
+				let _ = parse_tryout_from_raw_post_body(&body[..]);
 				("HTTP/1.1 404 Not Found", "404.html")
 			},
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
@@ -75,7 +80,7 @@ fn main() {
 	}
 }
 
-fn fetch_tryout(id: &str) -> Result<Tryout, ()> {
+fn fetch_tryout(id: &str) -> Result<Tryout, Error> {
 	let data_path = {
         let mut path = env::current_dir().unwrap();
         path.push("data");
@@ -84,7 +89,11 @@ fn fetch_tryout(id: &str) -> Result<Tryout, ()> {
     };
     let data = fs::read(data_path);
 	match data {
-		Err(_) => Err(()),
-		Ok(data) => Tryout::from_raw_bytes(&data[..]),
+		Err(_) => Err(Error::Other),
+		Ok(data) => Tryout::from_bytes(&data[..]),
 	}
+}
+
+fn parse_tryout_from_raw_post_body(body: &str) -> Result<Tryout, Error> {
+	Tryout::from_form_data(HtmlFormData::from_url_encoded_post_body(body)?)
 }
