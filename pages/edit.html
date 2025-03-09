@@ -4,6 +4,7 @@
 
 <meta charset="UTF-8"></meta>
 <title>Edit Tryout</title>
+<link rel="stylesheet" href="style.css"></link>
 
 </head>
 <body>
@@ -12,7 +13,14 @@
 
 <div id="view">
 	<form id="tryout" action="/submit" method="post">
-		<div id="question-container"></div>
+		<div id="tryout-header">
+			<label for="t">Judul:</label>
+			<input type="text" id="question-title" name="t"/>
+			<label for="d">Deskripsi:</label>
+			<textarea type="text" name="d"></textarea>
+		</div>
+		<div id="question-container">
+		</div>
 		<input type="submit" value="Simpan"/>
 	</form>
 </div>
@@ -21,10 +29,17 @@
 </div>
 
 <style>
+
 	div.question {
 		border: 1px solid black;
 		margin: 1px;
 	}
+	
+	input#question-title {
+		font-size: 3em;
+		font-weight: bold;
+	}
+
 </style>
 <script>
 	"use strict";
@@ -32,6 +47,7 @@
 	const questionContainer = document.getElementById("question-container");
 	let optionCount = 0;
 	function createQuestion() {
+
 		let container = document.createElement("div");
 		let containerId = "q" + optionCount;
 		container.setAttribute("id", containerId);

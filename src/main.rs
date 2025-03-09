@@ -6,6 +6,7 @@ use std::{
 		BufReader
 	},
 	net::{TcpListener},
+	path::PathBuf,
 };
 
 use urlencoding;
@@ -15,8 +16,19 @@ use tryout::Error;
 
 use tryout::server::{lololol, HtmlFormData};
 
+#[derive(Debug)]
+struct Config {
+
+	work_dir: PathBuf,
+	path_to_pages: PathBuf,
+	path_to_tryouts: PathBuf,
+}
+
 fn main() {
-	
+
+	let config = parse_config();
+	println!("{:?}", config);
+
     let listener = TcpListener::bind("127.0.0.1:12345").unwrap();
 
 	let mut connections: usize = 0;
@@ -60,6 +72,7 @@ fn main() {
 			"GET /contoh-tryout HTTP/1.1" =>
                 ("HTTP/1.1 200 OK", "details.html"),
             "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
+			"GET /style.css HTTP/1.1" => ("HTTP/1.1 200 OK", "style.css"),
 			"POST /submit HTTP/1.1" => {
 				let tryout = parse_tryout_from_raw_post_body(&body[..]);
 				println!("{:?}", tryout);
@@ -68,7 +81,11 @@ fn main() {
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
 		};
 
-		let content: String = fs::read_to_string(filename).unwrap();
+		println!("Response: {}", response_line);
+
+		let content: String = fs::read_to_string(
+			config.path_to_pages.join(filename)
+		).unwrap();
 
 		let response = format!(
 			"{}\r\nContent-Length: {}\r\n\r\n{}",
@@ -81,14 +98,17 @@ fn main() {
 	}
 }
 
-fn fetch_tryout(id: &str) -> Result<Tryout, Error> {
-	let data_path = {
-        let mut path = env::current_dir().unwrap();
-        path.push("data");
-        path.push(id);
-        path
-    };
-    let data = fs::read(data_path);
+fn parse_config() -> Config {
+	let work_dir = env::current_dir().unwrap();
+	Config {
+		work_dir,
+		path_to_pages: ["pages"].iter().collect(),
+		path_to_tryouts: ["data", "tryouts"].iter().collect(),
+	}
+}
+
+fn fetch_tryout(id: &str, path_to_tryouts: PathBuf) -> Result<Tryout, Error> {
+    let data = fs::read(path_to_tryouts.join(id));
 	match data {
 		Err(_) => Err(Error::Other),
 		Ok(data) => Tryout::from_bytes(&data[..]),
