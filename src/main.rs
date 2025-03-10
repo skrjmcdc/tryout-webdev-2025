@@ -5,7 +5,7 @@ use std::{
 		prelude::{Read, Write},
 		BufReader
 	},
-	net::{TcpListener},
+	net::{TcpListener, TcpStream},
 	path::PathBuf,
 };
 
@@ -43,63 +43,143 @@ fn main() {
 
 		let mut stream = stream.unwrap();
 
-		let mut buffer = [0; 1024];
-		let mut buf_reader = BufReader::new(&mut stream);
-		let result = buf_reader.read(&mut buffer);
-		println!("{:?}", result);
-
-		let request = String::from_utf8_lossy(&buffer);
-		println!("===Request: ===\n{request}\n===End Request===");
-
-		let (request_line, rest) = request
-            .split_once("\r\n")
-            .unwrap_or(("", ""));
-
-        let (headers, body) = rest
-            .split_once("\r\n\r\n")
-            .unwrap_or(("", ""));
-
-		let content_length: Option<usize> = headers
-			.split("\r\n")
-			.find(|x| x.starts_with("Content-Length"))
-			.map(|x| x.split_once(":"))
-			.flatten()
-			.map(|x| x.1.trim().parse().ok())
-			.flatten();
-		
-		let body = &body[..content_length.unwrap_or(0)];
-
-		let (response_line, filename) = match request_line {
-			"GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
-			"GET /contoh-tryout HTTP/1.1" =>
-                ("HTTP/1.1 200 OK", "details.html"),
-            "GET /edit HTTP/1.1" => ("HTTP/1.1 200 OK", "edit.html"),
-			"GET /style.css HTTP/1.1" => ("HTTP/1.1 200 OK", "style.css"),
-			"POST /submit HTTP/1.1" => {
-				let tryout = parse_tryout_from_raw_post_body(&body[..]);
-				if let Ok(tryout) = tryout {
-					let result = store_tryout(&config.path_to_tryouts, tryout);
-				}
-				("HTTP/1.1 404 Not Found", "404.html")
-			},
-			_ => ("HTTP/1.1 404 Not Found", "404.html"),
-		};
-
-		println!("Response: {}", response_line);
-
-		let content: String = fs::read_to_string(
-			config.path_to_pages.join(filename)
-		).unwrap();
-
-		let response = format!(
-			"{}\r\nContent-Length: {}\r\n\r\n{}",
-			response_line,
-			content.len(),
-			content,
-		);
-
-		stream.write_all(response.as_bytes()).unwrap();
+		handle_connection(&config, stream);
 	}
+}
+
+fn handle_connection(config: &Config, mut stream: TcpStream) {
+	let mut buffer = [0; 65536];
+	let result = stream.read(&mut buffer);
+	let n = match result {
+		Ok(n) => {
+			if n == 65536 {
+				return;
+			}
+			n
+		}
+		Err(_) => return,
+	};
+
+	let request = &buffer[..n];
+	let mut i = 0;
+	let mut d = 0;
+	let mut request_line = None;
+	let mut headers = Vec::new();
+	let mut body = None;
+
+	while i < n {
+		if request[i] == b'\r' {
+			d = 1;
+		} else if request[i] == b'\n' && d == 1 {
+			request_line = Some(&request[0..i-1]);
+			i += 1;
+			d = 2;
+			break;
+		} else {
+			d = 0;
+		}
+		i += 1;
+	}
+
+	let request_line = match request_line {
+		Some(x) => String::from_utf8_lossy(x),
+		None => return,
+	};
+
+	let mut start = i;
+	while i < n {
+		if request[i] == b'\r' {
+			d |= 1;
+		} else if request[i] == b'\n' && d % 2 == 1 {
+			d += 1;
+			if d == 2 {
+				headers.push(&request[start..i-1]);
+				start = i + 1;
+			}
+			if d == 4 {
+				body = Some(&request[i+1..n]);
+				break;
+			}
+		} else {
+			d = 0;
+		}
+		i += 1;
+	}
+
+	let headers: Vec<_> = headers.iter().map(|x| String::from_utf8_lossy(x)).collect();
+	println!("Request: {}", request_line);
+	println!("======== Headers ========");
+	for header in headers {
+		println!("{}", header);
+	}
+
+	println!("======== Body ========");
+	println!("{:?}", String::from_utf8_lossy(body.unwrap_or(&[])));
+
+	let mut drain = request_line.split(' ');
+	let method = match drain.next() {
+		Some(x) => x,
+		None => return,
+	};
+	let uri = match drain.next() {
+		Some(x) => x,
+		None => return,
+	};
+	let version = match drain.next() {
+		Some(x) => x,
+		None => return,
+	};
+
+	if version != "HTTP/1.1" {
+		return;
+	}
+
+	let (status_line, filename, redirect) = match (method, uri) {
+		("GET", "/") => ("HTTP/1.1 200 OK", Some("index.html"), None),
+		("GET", "/style.css") => ("HTTP/1.1 200 OK", Some("style.css"), None),
+		("GET", "/edit") => {
+			("HTTP/1.1 200 OK", Some("edit.html"), None)
+		},
+		("GET", uri) => {
+			if uri.starts_with("/details/") {
+				let id = uri.strip_prefix("/details/").unwrap_or(&"");
+				if is_legal_id(id) {
+					//TODO: Display tryout details
+					("HTTP/1.1 404 Not Found", Some("404.html"), None)
+				} else {
+					("HTTP/1.1 404 Not Found", Some("404.html"), None)
+				}
+			} else {
+				("HTTP/1.1 404 Not Found", Some("404.html"), None)
+			}
+		},
+		("POST" , "/submit") => {
+			let tryout = parse_tryout_from_raw_post_body(&String::from_utf8_lossy(body.unwrap())).unwrap();
+			let destination = store_tryout(&config.path_to_tryouts, tryout).unwrap();
+			let mut path = String::from("/details/");
+			path.push_str(&destination);
+			("HTTP/1.1 303 See Other", None, Some(path))
+		},
+		_ => ("HTTP/1.1 404 Not Found", Some("404.html"), None),
+	};
+
+	let content = match filename {
+		Some(x) => String::from_utf8_lossy(&fs::read(config.path_to_pages.join(x)).unwrap()).to_string(),
+		None => String::from(""),
+	};
+
+	let response = format!("{}{}{}\r\n\r\n{}",
+		status_line,
+		match status_line {
+			"HTTP/1.1 303 See Other" => format!("\r\nLocation: {}", redirect.unwrap()),
+			_ => String::from(""),
+		},
+		format!("\r\nContent-Length: {}", content.len()),
+		content,
+	);
+
+	println!("Response:\n{}", response);
+	stream.write_all(response.as_bytes()).unwrap();
 }
 
 fn parse_config() -> Config {
@@ -131,4 +211,8 @@ fn store_tryout(path_to_tryouts: &PathBuf, tryout: Tryout) -> Result<String, Err
 
 fn parse_tryout_from_raw_post_body(body: &str) -> Result<Tryout, Error> {
 	Tryout::from_form_data(HtmlFormData::from_url_encoded_post_body(body)?)
+}
+
+fn is_legal_id(id: &str) -> bool {
+	base62::decode(id).is_ok()
 }
