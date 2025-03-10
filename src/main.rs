@@ -10,6 +10,8 @@ use std::{
 };
 
 use urlencoding;
+use uuid;
+use base62;
 
 use tryout::Tryout;
 use tryout::Error;
@@ -113,6 +115,16 @@ fn fetch_tryout(id: &str, path_to_tryouts: PathBuf) -> Result<Tryout, Error> {
 		Err(_) => Err(Error::Other),
 		Ok(data) => Tryout::from_bytes(&data[..]),
 	}
+}
+
+fn store_tryout(path_to_tryouts: PathBuf, tryout: Tryout) -> Result<(), Error> {
+	let id = match tryout.get_id() {
+		None => uuid::Uuid::new_v4(),
+		Some(i) => *i,
+	};
+	let id = base62::encode(id.as_u128());
+	fs::write(path_to_tryouts.join(id), tryout.to_bytes()?)?;
+	Ok(())
 }
 
 fn parse_tryout_from_raw_post_body(body: &str) -> Result<Tryout, Error> {
