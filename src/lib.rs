@@ -43,6 +43,10 @@ impl Tryout {
 
 	pub const MAX_MULTIPLE_CHOICE_AMOUNT: usize = 10;
 
+	pub fn set_id() {
+		
+	}
+
 	pub fn from_bytes(data: &[u8]) -> Result<Self, Error> {
 		Self::from_chunks(Chunks::from_bytes(data)?)
 	}
@@ -55,7 +59,7 @@ impl Tryout {
 		let mut title: Option<String> = None;
 		let mut description: Option<String> = None;
 		let mut questions = Vec::new();
-		let mut id: Option<Uuid> = None;
+		let mut id: Option<Option<Uuid>> = None;
 		for chunk in chunks.into_iter() {
 			match chunk.get_type() {
 				1..= 15 => questions.push(Question::from_chunk(chunk)?),
@@ -63,8 +67,9 @@ impl Tryout {
 					None => {
 						let result = base62::decode(String::from_utf8_lossy(chunk.get_data()).to_string());
 						match result {
-							Ok(i) => id = Some(Uuid::from_u128(i)),
-							Err(_) => return Err(Error::Other),
+							Ok(i) => id = Some(Some(Uuid::from_u128(i))),
+							Err(base62::DecodeError::EmptyInput) => id = Some(None),
+							Err(_) => return Err(Error::InvalidIdFormat),
 						}
 					}
 					Some(_) => return Err(Error::DuplicateField),
@@ -81,7 +86,7 @@ impl Tryout {
 			}
 		}
 		Ok(Self {
-			id,
+			id: id.flatten(),
 			title: title.unwrap_or(String::new()),
 			description: description.unwrap_or(String::new()),
 			questions,
@@ -95,10 +100,16 @@ impl Tryout {
 			Some(i) => i.as_u128().to_be_bytes().to_vec(),
 		};
 		chunks.push(Chunk::new(16, &id[..])?);
+
+		chunks.push(Chunk::new(17, &self.title.as_bytes())?);
+		chunks.push(Chunk::new(18, &self.description.as_bytes())?);
+
 		for question in &self.questions {
 			chunks.push(question.to_chunk()?);
 		}
-		Ok(Chunks::from_vec(chunks))
+
+		let result = Ok(Chunks::from_vec(chunks));
+		result
 	}
 
 	pub fn from_form_data(data: HtmlFormData) -> Result<Self, Error> {
@@ -246,6 +257,12 @@ impl Tryout {
 			}
 		}
 
+		questions.push(build_question(
+			&mut current_prompt,
+			&mut current_type,
+			&mut current_choices,
+		)?);
+
 		Ok(Self{
 			id: current_id,
 			title: current_title.unwrap_or(String::new()),
@@ -261,7 +278,7 @@ impl Tryout {
 
 impl Question {
 	fn from_chunk(chunk: Chunk) -> Result<Self, Error> {
-		let inner_chunks = Chunks::from_bytes(&chunk.to_owned_bytes())?;
+		let inner_chunks = Chunks::from_bytes(&chunk.get_data())?;
 		let mut prompt: Option<String> = None;
 		let mut choices = Vec::new();
 		let question_type = chunk.get_type();
@@ -278,7 +295,7 @@ impl Question {
 					if question_type == 3 {
 						return Err(Error::TooManyChoices);
 					}
-					let inner_inner_chunks = Chunks::from_bytes(&chunk.to_owned_bytes())?;
+					let inner_inner_chunks = Chunks::from_bytes(&chunk.get_data())?;
 					for chunk in inner_inner_chunks.iter() {
 						choices.push(Choice {
 							name: String::from_utf8_lossy(chunk.get_data()).to_string(),
@@ -321,11 +338,19 @@ impl Question {
 		data.extend_from_slice(&Chunk::new(0, self.prompt.as_bytes())?.to_owned_bytes());
 		match &self.kind {
 			QuestionKind::TrueOrFalse(a, b) => {
-				data.extend_from_slice(&Chunk::new(a.correct as u32, a.name.as_bytes())?.to_owned_bytes());
-				data.extend_from_slice(&Chunk::new(b.correct as u32, b.name.as_bytes())?.to_owned_bytes());
+				let mut inner_chunks = Vec::new();
+				inner_chunks.extend_from_slice(&Chunk::new(
+					a.correct as u32,
+					a.name.as_bytes(),
+				)?.to_owned_bytes());
+				inner_chunks.extend_from_slice(&Chunk::new(
+					b.correct as u32,
+					b.name.as_bytes(),
+				)?.to_owned_bytes());
+				data.extend_from_slice(&Chunk::new(1, &inner_chunks)?.to_owned_bytes());
 			}
-			QuestionKind::MultipleChoice(choices) => for choice in choices {
-				data.extend_from_slice(&Chunk::new(choice.correct as u32, choice.name.as_bytes())?.to_owned_bytes());
+			QuestionKind::MultipleChoice(choices) => {
+				return Err(Error::Other);
 			}
 			QuestionKind::Essay => (),
 		}

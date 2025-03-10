@@ -77,7 +77,9 @@ fn main() {
 			"GET /style.css HTTP/1.1" => ("HTTP/1.1 200 OK", "style.css"),
 			"POST /submit HTTP/1.1" => {
 				let tryout = parse_tryout_from_raw_post_body(&body[..]);
-				println!("{:?}", tryout);
+				if let Ok(tryout) = tryout {
+					let result = store_tryout(&config.path_to_tryouts, tryout);
+				}
 				("HTTP/1.1 404 Not Found", "404.html")
 			},
 			_ => ("HTTP/1.1 404 Not Found", "404.html"),
@@ -109,7 +111,7 @@ fn parse_config() -> Config {
 	}
 }
 
-fn fetch_tryout(id: &str, path_to_tryouts: PathBuf) -> Result<Tryout, Error> {
+fn fetch_tryout(id: &str, path_to_tryouts: &PathBuf) -> Result<Tryout, Error> {
     let data = fs::read(path_to_tryouts.join(id));
 	match data {
 		Err(_) => Err(Error::Other),
@@ -117,14 +119,14 @@ fn fetch_tryout(id: &str, path_to_tryouts: PathBuf) -> Result<Tryout, Error> {
 	}
 }
 
-fn store_tryout(path_to_tryouts: PathBuf, tryout: Tryout) -> Result<(), Error> {
+fn store_tryout(path_to_tryouts: &PathBuf, tryout: Tryout) -> Result<String, Error> {
 	let id = match tryout.get_id() {
 		None => uuid::Uuid::new_v4(),
 		Some(i) => *i,
 	};
 	let id = base62::encode(id.as_u128());
-	fs::write(path_to_tryouts.join(id), tryout.to_bytes()?)?;
-	Ok(())
+	fs::write(path_to_tryouts.join(&id), tryout.to_bytes()?)?;
+	Ok(id)
 }
 
 fn parse_tryout_from_raw_post_body(body: &str) -> Result<Tryout, Error> {

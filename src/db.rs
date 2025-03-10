@@ -2,8 +2,10 @@ use std::io::Read;
 
 use crate::Error;
 
+#[derive(Debug)]
 pub struct Chunks(Vec<Chunk>);
 
+#[derive(Debug)]
 pub struct Chunk {
 	size: u32,
 	type_index: u32,
@@ -58,7 +60,7 @@ impl Chunks {
 			} else if n < 4 {
 				return Err(Error::UnexpectedEOF);
 			}
-			let size  = u32::from_be_bytes(temp[..].try_into().unwrap());
+			let mut size  = u32::from_be_bytes(temp[..].try_into().unwrap());
 
 			let n = bytes.read(&mut temp)?;
 			if n < 4 {
@@ -67,10 +69,18 @@ impl Chunks {
 			let type_index = u32::from_be_bytes(temp[..].try_into().unwrap());
 
 			let mut data = Vec::with_capacity(size as usize);
-			let n = bytes.read(&mut data)?;
-			if (n as u32) < size {
-				return Err(Error::UnexpectedEOF);
+			let mut buffer = [0u8; 1024];
+			while size > 1024 {
+				if let Err(_) = bytes.read_exact(&mut buffer) {
+					return Err(Error::Other);
+				}
+				data.extend_from_slice(&buffer);
+				size -= 1024;
 			}
+			if let Err(_) = bytes.read_exact(&mut buffer[0..size as usize]) {
+				return Err(Error::Other);
+			}
+			data.extend_from_slice(&buffer[0..size as usize]);
 
 			chunks.push(Chunk {
 				size,
