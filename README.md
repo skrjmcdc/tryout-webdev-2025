@@ -7,10 +7,6 @@
 2. `cargo run` di root proyek
 ```
 git clone https://github.com/skrjmcdc/tryout-webdev-2025.git
+cd tryout-webdev-2025
 cargo run
-```
-
-### Lewat Docker
-```
-docker run
 ```
